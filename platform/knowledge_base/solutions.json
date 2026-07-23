@@ -1,0 +1,369 @@
+{
+  "solutions": [
+    {
+      "id": "cpu_high",
+      "name": "CPU过高处置方案",
+      "steps": [
+        "使用top -c或htop定位高CPU进程",
+        "确认是否为正常业务负载",
+        "对非关键进程执行nice/renice降低优先级",
+        "检查是否有异常cron任务叠加",
+        "必要时重启异常进程或扩容"
+      ],
+      "commands": [
+        "top -c -b -n 1 | head -20",
+        "ps aux --sort=-%cpu | head -10",
+        "renice 10 -p <PID>"
+      ],
+      "prevention": "设置CPU告警阈值80%，配置自动扩容策略"
+    },
+    {
+      "id": "memory_leak",
+      "name": "内存泄漏处置方案",
+      "steps": [
+        "确认内存使用趋势（是否持续增长）",
+        "定位高内存进程",
+        "检查应用日志是否有OOM相关错误",
+        "尝试重启泄漏进程释放内存",
+        "必要时清理系统缓存"
+      ],
+      "commands": [
+        "free -h",
+        "ps aux --sort=-%mem | head -10",
+        "echo 3 > /proc/sys/vm/drop_caches",
+        "dmesg | grep -i oom"
+      ],
+      "prevention": "设置内存告警阈值85%，应用层配置内存上限"
+    },
+    {
+      "id": "disk_full",
+      "name": "磁盘空间不足处置方案",
+      "steps": [
+        "定位大文件和大目录",
+        "清理过期日志文件",
+        "清理临时文件和缓存",
+        "检查并配置日志轮转(logrotate)",
+        "必要时扩容磁盘"
+      ],
+      "commands": [
+        "df -h",
+        "du -sh /* | sort -rh | head -10",
+        "find /var/log -name '*.log' -mtime +7 -delete",
+        "journalctl --vacuum-size=100M"
+      ],
+      "prevention": "配置logrotate自动轮转，设置磁盘告警阈值85%"
+    },
+    {
+      "id": "network_issue",
+      "name": "网络异常处置方案",
+      "steps": [
+        "ping目标地址确认连通性",
+        "traceroute定位网络断点",
+        "检查网卡状态和配置",
+        "检查防火墙/安全组规则",
+        "联系网络管理员排查交换机/路由器"
+      ],
+      "commands": [
+        "ping -c 10 <target>",
+        "traceroute <target>",
+        "ip addr show",
+        "ss -tlnp",
+        "iptables -L -n"
+      ],
+      "prevention": "配置网络监控和丢包告警，建立冗余网络链路"
+    },
+    {
+      "id": "io_bottleneck",
+      "name": "IO瓶颈处置方案",
+      "steps": [
+        "使用iostat定位IO热点磁盘",
+        "检查是否有大量随机IO操作",
+        "优化数据库查询减少全表扫描",
+        "考虑使用SSD替换HDD",
+        "配置IO调度策略"
+      ],
+      "commands": [
+        "iostat -x 1 5",
+        "iotop -o",
+        "cat /sys/block/sda/queue/scheduler"
+      ],
+      "prevention": "数据库定期优化索引，关键业务使用SSD"
+    },
+    {
+      "id": "process_zombie",
+      "name": "僵尸进程处置方案",
+      "steps": [
+        "查找僵尸进程及其父进程",
+        "向父进程发送SIGCHLD信号",
+        "如父进程无响应则终止父进程",
+        "检查应用代码的子进程回收逻辑"
+      ],
+      "commands": [
+        "ps aux | grep Z",
+        "ps -ef | grep defunct",
+        "kill -s SIGCHLD <parent_pid>"
+      ],
+      "prevention": "确保应用正确处理子进程退出信号"
+    },
+    {
+      "id": "service_crash",
+      "name": "服务崩溃处置方案",
+      "steps": [
+        "检查服务状态",
+        "查看服务日志定位崩溃原因",
+        "检查系统日志是否有OOM记录",
+        "尝试重启服务",
+        "修复根本原因后配置自动重启"
+      ],
+      "commands": [
+        "systemctl status <service>",
+        "journalctl -u <service> --since '1 hour ago'",
+        "dmesg | tail -50",
+        "systemctl restart <service>"
+      ],
+      "prevention": "配置systemd自动重启策略(Restart=always)，设置健康检查"
+    },
+    {
+      "id": "high_connections",
+      "name": "高连接数处置方案",
+      "steps": [
+        "统计各状态连接数",
+        "定位连接来源IP和端口",
+        "检查是否有连接泄漏",
+        "调整内核网络参数",
+        "必要时重启应用释放连接"
+      ],
+      "commands": [
+        "ss -s",
+        "ss -tn state established | wc -l",
+        "ss -tn state time-wait | wc -l",
+        "netstat -ant | awk '{print $6}' | sort | uniq -c"
+      ],
+      "prevention": "配置连接超时回收，设置连接池上限"
+    },
+    {
+      "id": "swap_heavy",
+      "name": "Swap频繁使用处置方案",
+      "steps": [
+        "确认物理内存使用情况",
+        "定位高内存进程",
+        "调整vm.swappiness参数",
+        "考虑增加物理内存",
+        "优化应用内存使用"
+      ],
+      "commands": [
+        "free -h",
+        "cat /proc/sys/vm/swappiness",
+        "sysctl vm.swappiness=10",
+        "smem -rs pss | head -10"
+      ],
+      "prevention": "设置swappiness=10，内存告警阈值80%"
+    },
+    {
+      "id": "time_drift",
+      "name": "时间偏移处置方案",
+      "steps": [
+        "检查当前时间和NTP状态",
+        "手动同步时间",
+        "配置NTP自动同步",
+        "检查时区设置"
+      ],
+      "commands": [
+        "date",
+        "timedatectl",
+        "ntpdate ntp.aliyun.com",
+        "chronyc tracking"
+      ],
+      "prevention": "配置chrony/ntpd自动同步，定期检查时间偏差"
+    },
+    {
+      "id": "security_audit",
+      "name": "安全审计异常处置方案",
+      "steps": [
+        "查看/var/log/secure确认SSH暴力破解来源IP",
+        "检查是否有异常用户登录成功记录",
+        "核查最近的用户权限变更操作",
+        "封禁可疑IP并加固SSH配置",
+        "全面检查系统是否已被入侵（后门、异常进程、可疑cron）"
+      ],
+      "commands": [
+        "grep 'Failed password' /var/log/secure | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head -20",
+        "last -20",
+        "grep 'Accepted' /var/log/secure | tail -20",
+        "firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=<ATTACKER_IP> reject' && firewall-cmd --reload",
+        "cat /etc/ssh/sshd_config | grep -E 'PermitRootLogin|MaxAuthTries|PasswordAuthentication'"
+      ],
+      "prevention": "禁用root远程登录，启用密钥认证，配置fail2ban自动封禁，限制SSH访问IP白名单"
+    },
+    {
+      "id": "cert_expired",
+      "name": "SSL/TLS证书过期处置方案",
+      "steps": [
+        "检查证书当前有效期和过期时间",
+        "确认受影响的服务和域名范围",
+        "申请或生成新证书（内网环境使用内部CA签发）",
+        "替换过期证书并重启相关服务",
+        "验证新证书生效且HTTPS服务正常"
+      ],
+      "commands": [
+        "openssl x509 -in /etc/ssl/certs/server.crt -noout -dates",
+        "openssl s_client -connect localhost:443 -servername <domain> </dev/null 2>/dev/null | openssl x509 -noout -dates",
+        "nginx -t && systemctl reload nginx",
+        "curl -vI https://localhost 2>&1 | grep -E 'expire|subject'"
+      ],
+      "prevention": "建立证书到期提前60天告警机制，内部CA证书统一管理，配置证书自动续签脚本并加入cron定期执行"
+    },
+    {
+      "id": "dns_failure",
+      "name": "DNS解析异常处置方案",
+      "steps": [
+        "确认DNS服务器可达性",
+        "检查/etc/resolv.conf配置是否正确",
+        "测试域名解析是否正常",
+        "检查本地DNS缓存和hosts文件",
+        "切换或添加备用DNS服务器"
+      ],
+      "commands": [
+        "cat /etc/resolv.conf",
+        "nslookup <domain> <dns_server>",
+        "dig @<dns_server> <domain> +short",
+        "ping -c 3 <dns_server_ip>",
+        "systemctl status named || systemctl status dnsmasq"
+      ],
+      "prevention": "配置至少两个DNS服务器地址，内网部署冗余DNS服务，关键服务域名写入/etc/hosts作为兜底"
+    },
+    {
+      "id": "ntp_sync_fail",
+      "name": "NTP同步失败处置方案",
+      "steps": [
+        "检查chronyd/ntpd服务运行状态",
+        "确认NTP服务器地址可达",
+        "检查防火墙是否放行UDP 123端口",
+        "手动强制同步时间",
+        "配置内网NTP服务器作为时钟源"
+      ],
+      "commands": [
+        "systemctl status chronyd",
+        "chronyc sources -v",
+        "firewall-cmd --list-all | grep ntp",
+        "chronyc makestep",
+        "timedatectl set-ntp true"
+      ],
+      "prevention": "内网部署专用NTP服务器，配置chronyd开机自启，设置时间偏差超过500ms告警"
+    },
+    {
+      "id": "readonly_fs",
+      "name": "文件系统只读处置方案",
+      "steps": [
+        "检查dmesg确认磁盘错误类型",
+        "确认受影响的挂载点和分区",
+        "尝试重新挂载为读写模式",
+        "执行文件系统检查修复",
+        "检查磁盘SMART健康状态评估是否需要更换磁盘"
+      ],
+      "commands": [
+        "dmesg | grep -iE 'error|readonly|read-only|ext4|xfs' | tail -30",
+        "mount | grep 'ro,'",
+        "mount -o remount,rw /dev/sdX /mount_point",
+        "fsck -y /dev/sdX",
+        "smartctl -a /dev/sdX"
+      ],
+      "prevention": "定期检查磁盘SMART状态，配置RAID冗余保护，部署UPS防止意外断电，设置磁盘健康监控告警"
+    },
+    {
+      "id": "oom_killer",
+      "name": "OOM Killer频繁触发处置方案",
+      "steps": [
+        "查看dmesg确认被OOM杀死的进程及内存使用详情",
+        "分析系统内存分配现状（物理内存、Swap、各进程占用）",
+        "调整关键业务进程的oom_score_adj防止被误杀",
+        "优化内存使用或增加物理内存",
+        "配置cgroup内存限制隔离非关键进程"
+      ],
+      "commands": [
+        "dmesg | grep -i 'out of memory' -A 10",
+        "free -h && cat /proc/meminfo | grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree'",
+        "ps aux --sort=-%mem | head -15",
+        "echo -1000 > /proc/<critical_pid>/oom_score_adj",
+        "sysctl vm.overcommit_memory=2"
+      ],
+      "prevention": "关键业务进程设置oom_score_adj=-1000防止被杀，合理规划服务器内存容量，配置内存使用率90%告警"
+    },
+    {
+      "id": "port_conflict",
+      "name": "端口冲突处置方案",
+      "steps": [
+        "确认冲突端口号和占用进程",
+        "判断哪个进程应当使用该端口",
+        "停止或修改非预期占用端口的进程",
+        "修改服务配置文件使用不同端口",
+        "重启目标服务验证端口绑定成功"
+      ],
+      "commands": [
+        "ss -tlnp | grep <port>",
+        "lsof -i :<port>",
+        "fuser -n tcp <port>",
+        "kill <conflict_pid>",
+        "systemctl restart <target_service> && ss -tlnp | grep <port>"
+      ],
+      "prevention": "建立端口使用登记表统一管理，服务部署前检查端口占用，Docker容器端口映射集中规划"
+    },
+    {
+      "id": "ssh_limit",
+      "name": "SSH连接数超限处置方案",
+      "steps": [
+        "确认当前SSH连接数和配置上限",
+        "排查是否有自动化脚本泄漏SSH连接",
+        "终止空闲或异常的SSH会话",
+        "调整sshd_config中MaxSessions和MaxStartups参数",
+        "重启sshd服务使配置生效"
+      ],
+      "commands": [
+        "ss -tn state established '( dport = :22 or sport = :22 )' | wc -l",
+        "who | wc -l",
+        "grep -E 'MaxSessions|MaxStartups' /etc/ssh/sshd_config",
+        "pkill -o -u <username> sshd",
+        "sed -i 's/^#MaxSessions.*/MaxSessions 20/' /etc/ssh/sshd_config && systemctl reload sshd"
+      ],
+      "prevention": "自动化脚本使用完SSH连接后及时关闭，配置ClientAliveInterval自动清理空闲连接，设置合理的MaxSessions值"
+    },
+    {
+      "id": "high_load",
+      "name": "系统负载异常高处置方案",
+      "steps": [
+        "查看load average确认负载趋势",
+        "区分CPU密集型负载还是IO等待型负载",
+        "定位D状态进程（不可中断睡眠）排查IO阻塞",
+        "检查是否有NFS挂载点不可达导致进程挂起",
+        "终止非关键高负载进程或任务"
+      ],
+      "commands": [
+        "uptime && cat /proc/loadavg",
+        "vmstat 1 5",
+        "ps aux | awk '$8 ~ /D/ {print}'",
+        "df -h --type=nfs4 2>/dev/null; mount | grep nfs",
+        "top -b -n 1 | head -25"
+      ],
+      "prevention": "监控load average设置分级告警（>核心数2倍warning，>3倍critical），NFS挂载配置soft和timeo参数防止挂起"
+    },
+    {
+      "id": "kernel_param",
+      "name": "内核参数异常处置方案",
+      "steps": [
+        "确认具体触及的内核限制类型（文件描述符/conntrack/网络参数）",
+        "检查当前内核参数值和系统使用情况",
+        "临时调大参数值恢复业务",
+        "持久化修改写入/etc/sysctl.conf和/etc/security/limits.conf",
+        "重启受影响的服务验证恢复正常"
+      ],
+      "commands": [
+        "sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max",
+        "cat /proc/sys/fs/file-nr",
+        "ulimit -n && cat /etc/security/limits.conf | grep nofile",
+        "sysctl -w net.netfilter.nf_conntrack_max=262144 && echo 'net.netfilter.nf_conntrack_max=262144' >> /etc/sysctl.conf",
+        "echo '* soft nofile 65536' >> /etc/security/limits.conf && echo '* hard nofile 131072' >> /etc/security/limits.conf"
+      ],
+      "prevention": "服务器上线前统一调优内核参数，建立标准化sysctl.conf模板，定期巡检内核参数使用率"
+    }
+  ]
+}
